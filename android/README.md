@@ -638,6 +638,43 @@ onView(withId(R.id.view))
         .check(matches(isDisplayed()))
 ```
 
+# Clean Architecture
+## Communication between layers
+Clean Architecture has 3 layers: Data, Domain and Presentation. Domain is the central layer and it contains business logic. Data and Presentation layers are implementations detals for data persistance and user interface. The communication between layers is described by Dependency Rule and this rule states that the inner layers cant talk to the outer layers. In order to achieve this communication, we are using Dependency Injection with Hilt. Domain layer is exposing abstractions (repository interfaces) to data layer and entities that are implemented in Data layer in order to provide required data. Presentation layer is using Use Cases to communicate with Domain and Data layer.
+For each feature there are 4 required packages:
+### Data
+Data layer contains 3 packages named: local, remote and repositories
+- local - This package is responsible for local data storage and it contains:
+ - Room DAOs - interface annotated with `@Dao` annotation containing functions that work with Room database. Function should describe what are they doing and have following prefixes: `remove`, `save`, `load`, `update`, `set`, `fetch`.
+ - models for Room - entities that are saved in the database. Each model should have its own file with postfix `Model`.
+ - mappers that are mapping from Room database models to entities from domain layer - Kotlin file with functions that are providing logic how is the mapping done from database  models to entities. Function names should follow this format `map[ModelName]Model` or `map[ModelName]ModelList`. The file should be names as ModelMappers.
+ - local data source contract - an interface used by repositories
+ - local data source - implements the contract , has access to the DAOs and performs database operations.
+- remote - This package contains everything related to API and other remote dependencies.
+ - responses and requests in model package - data classes that are annotated with `@Parcelize` and implement Parcelable interface. fields should be nullable and immutable.
+ - mappers that are mapping from API response to Room database models - Kotlin file with functions that are providing logic how is the mapping done from API response to database models. Function names should follow this format `map[ModelName]Response` or `map[ModelName]ResponseList`. The file should be names as ResponseMappers.
+ - remote data source - an interface used by repositories
+ - remote data source contract - implements the contract , has access to the API service and performs API operations.
+ - API service - interface with functions annotated with Retrofit annotations to perform API operations. Functions should have the name like the operation they are doing: `get`, `delete`,  post and put can be `add` or `update` depending on the context how they are used.
+- repositories
+ - repository implementations - classes that are implementing the repository contract from domain layer and repositories are using local and remote data sources contracts to manipulate the data, also the mappers are used here to convert the data.
+### DI
+Modules are objects used by Hilt and here should be: one for daos, one for api services  and one for data sources. Each module can contain multiple functions annotated with `@Provides` annotation and the funtcions should have the prefix `provides`.
+### Domain
+- abstractions - repository contracts that is using entites, so that repositories that implement this need to provide data in the format that domain understands.
+- entities - data classes that hold business logic and information
+- use_cases - classes that are implementing one of the base use cases and provide logic how to build the use case. This function is executed when it is called from the ViewModel. Use cases are using repostiory contracts or other use cases to perform business logic behind every user interaction.
+### Presentation
+- feature_screen - for every feature screen there should be a package describing the screen. This package should hold everything related to that screen. If the feature has only one screen this is redundant. If the feature has a list of items, there should also be a package `adapter` that contains adapter and all items that are being displayed.
+ - ViewModel - every features ViewModel should extend CoreViewModel, or if there is something common for many ViewModels there should be created a new `CoreFeatureViewModel` that extends CoreViewModel and has everything needed. The ViewModel should trigger data with `fetchData()` and `loadData()` functions and execute use cases. ViewModels have to be annotated with `@HiltViewModel` and in the constructor there should be all required use cases.
+ - Fragment - every features Fragment should extend CoreFragment, or if there is something common for many Fragment there should be created a new `CoreFeatureFragment` that extends CoreFragment and has everything needed.
+# Automation Locators Strategy
+In order to help with Automation tests, all UI elements should have uniqe id. For static elements it is easy to add them ithrough the xml, but in cases with RecyclerView the ids need to be added dynamicaly. To achieve this using content description is working fine. To add some id to elements the following rule applies:
+- if the object has some uniqe id it should be used
+- if the object doesnt have some id, the name of the object should be used
+- if the object doesnt have id or name the index of the elemenet in the list should be used as an id
+
+
 # License
 
 ```
